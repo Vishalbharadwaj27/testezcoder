@@ -8,6 +8,7 @@ import {
   MenubarSeparator,
   MenubarShortcut,
 } from '@/components/ui/menubar';
+import { useToast } from '@/hooks/use-toast';
 import { useVSCode } from '../store/vscodeStore';
 
 export function MenuBar() {
@@ -16,7 +17,13 @@ export function MenuBar() {
     updateFileContent,
     sidebarVisible,
     setSidebarVisible,
+    toggleTerminal,
+    createNewFile,
+    saveActiveFile,
+    openFile,
+    toggleCommandPalette,
   } = useVSCode();
+  const { toast } = useToast();
 
   const toggleSidebar = () => {
     setSidebarVisible(!sidebarVisible);
@@ -60,14 +67,34 @@ export function MenuBar() {
       <MenubarMenu>
         <MenubarTrigger className="text-sm">File</MenubarTrigger>
         <MenubarContent>
-          <MenubarItem>
+          <MenubarItem onClick={() => {
+            createNewFile();
+            toast({
+              title: "New File Created",
+              description: "Created a new empty file",
+            });
+          }}>
             New File... <MenubarShortcut>⌘N</MenubarShortcut>
           </MenubarItem>
-          <MenubarItem>
+          <MenubarItem onClick={openFile}>
             Open... <MenubarShortcut>⌘O</MenubarShortcut>
           </MenubarItem>
           <MenubarSeparator />
-          <MenubarItem>
+          <MenubarItem onClick={async () => {
+            const saved = await saveActiveFile();
+            if (saved) {
+              toast({
+                title: "File Saved!",
+                description: "Your file has been saved successfully.",
+              });
+            } else {
+              toast({
+                title: "Save Failed",
+                description: "Could not save the file. Please try again.",
+                variant: "destructive",
+              });
+            }
+          }}>
             Save <MenubarShortcut>⌘S</MenubarShortcut>
           </MenubarItem>
         </MenubarContent>
@@ -91,13 +118,14 @@ export function MenuBar() {
       <MenubarMenu>
         <MenubarTrigger className="text-sm">View</MenubarTrigger>
         <MenubarContent>
-          <MenubarItem>
+          <MenubarItem onClick={toggleCommandPalette}>
             Command Palette... <MenubarShortcut>⌘⇧P</MenubarShortcut>
           </MenubarItem>
           <MenubarSeparator />
           <MenubarItem onClick={toggleSidebar}>
             Toggle Sidebar <MenubarShortcut>⌘B</MenubarShortcut>
           </MenubarItem>
+          <MenubarItem onClick={toggleTerminal}>Toggle Terminal</MenubarItem>
         </MenubarContent>
       </MenubarMenu>
     </Menubar>

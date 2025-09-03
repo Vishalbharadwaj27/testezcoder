@@ -1,37 +1,23 @@
-import { useState, useRef, useEffect } from 'react';
+import { useVSCode } from '@/store/vscodeStore';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import Editor from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Lightbulb, Wand2, Play, Bug, Settings } from 'lucide-react';
+import { Lightbulb, Wand2, Play } from 'lucide-react';
 import { TinyLlamaService, FixResponse } from '@/services/tinyLlamaService';
 import { DiffViewer } from './DiffViewer';
 import { ContextMenuComponent } from './ContextMenu';
 import { useToast } from '@/hooks/use-toast';
-
-const defaultCode = `// Welcome to EZ-coder Simulator!
-// Try these features:
-// 1. Select code and click "Fix Errors" 
-// 2. Write a comment starting with "//EZ:" and click "Generate"
-
-function calculateSum(a, b) {
-  // This function has a bug - missing return statement
-  const result = a + b;
-}
-
-// Example: Uncomment and generate code for this:
-// //EZ: Create a function that sorts an array of numbers
-
-console.log(calculateSum(5, 3)); // This will log undefined due to missing return
-`;
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface VSCodeEditorProps {
   className?: string;
 }
 
-export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
-  const [code, setCode] = useState(defaultCode);
+export default function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
+  const { activeFile, updateFileContent, executeCode, isExecuting } = useVSCode();
   const [selectedCode, setSelectedCode] = useState('');
-  const [language, setLanguage] = useState('javascript');
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [diffData, setDiffData] = useState<{ original: string; corrected: string } | null>(null);
@@ -41,14 +27,12 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
     visible: false
   });
   
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    initializeModel();
-  }, []);
+  const language = activeFile?.language || 'javascript';
 
-  const initializeModel = async () => {
+  const initializeModel = useCallback(async () => {
     if (TinyLlamaService.isReady()) return;
     
     setIsModelLoading(true);
@@ -67,13 +51,16 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
     } finally {
       setIsModelLoading(false);
     }
-  };
+  }, [toast]);
 
-  const handleEditorDidMount = (editor: any) => {
+  useEffect(() => {
+    initializeModel();
+  }, [initializeModel]);
+
+  const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
     
-    // Add context menu listener
-    editor.onContextMenu((e: any) => {
+    editor.onContextMenu((e: monaco.editor.IEditorMouseEvent) => {
       const selection = editor.getSelection();
       if (selection && !selection.isEmpty()) {
         const selectedText = editor.getModel()?.getValueInRange(selection) || '';
@@ -86,7 +73,6 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
       }
     });
 
-    // Hide context menu on click
     editor.onMouseDown(() => {
       setContextMenu(prev => ({ ...prev, visible: false }));
     });
@@ -102,7 +88,7 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
       return;
     }
 
-    const codeToFix = selectedCode || getSelectedText() || code;
+    const codeToFix = selectedCode || getSelectedText() || (activeFile?.content || '');
     if (!codeToFix.trim()) {
       toast({
         title: "No Code Selected",
@@ -155,7 +141,8 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
       return;
     }
 
-    const ezComments = code.match(/\/\/EZ:.*$/gm);
+    const content = activeFile?.content || '';
+    const ezComments = content.match(/\/\/EZ:.*$/gm);
     if (!ezComments || ezComments.length === 0) {
       toast({
         title: "No EZ Comments Found",
@@ -182,13 +169,14 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
     try {
       const generatedCode = await TinyLlamaService.generateCode(instruction, language);
       
-      // Insert generated code after the EZ comment
-      const commentIndex = code.lastIndexOf(lastComment);
-      const beforeComment = code.substring(0, commentIndex + lastComment.length);
-      const afterComment = code.substring(commentIndex + lastComment.length);
+      const commentIndex = content.lastIndexOf(lastComment);
+      const beforeComment = content.substring(0, commentIndex + lastComment.length);
+      const afterComment = content.substring(commentIndex + lastComment.length);
       
       const newCode = beforeComment + '\n' + generatedCode + '\n' + afterComment;
-      setCode(newCode);
+      if (activeFile) {
+        updateFileContent(activeFile.path, newCode);
+      }
       
       toast({
         title: "🪄 Code Generated",
@@ -216,10 +204,14 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
     if (!diffData) return;
     
     if (selectedCode) {
-      const newCode = code.replace(selectedCode, diffData.corrected);
-      setCode(newCode);
+      const newCode = (activeFile?.content || '').replace(selectedCode, diffData.corrected);
+      if (activeFile) {
+        updateFileContent(activeFile.path, newCode);
+      }
     } else {
-      setCode(diffData.corrected);
+      if (activeFile) {
+        updateFileContent(activeFile.path, diffData.corrected);
+      }
     }
     
     setDiffData(null);
@@ -230,12 +222,12 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
   };
 
   return (
-    <div className={`vscode-editor-container ${className}`}>
+    <div className={`vscode-editor-container ${className} h-full flex flex-col`}>
       {/* Toolbar */}
       <div className="vscode-toolbar border-b border-border bg-muted/30 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">
-            main.js
+            {activeFile?.name || 'No File'}
           </Badge>
           <Badge variant={language === 'javascript' ? 'default' : 'outline'} className="text-xs">
             {language}
@@ -278,42 +270,59 @@ export function VSCodeEditor({ className = '' }: VSCodeEditorProps) {
             <Wand2 className="h-3 w-3" />
             {isProcessing ? 'Generating...' : 'Generate'}
           </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={executeCode}
+            disabled={isExecuting || !activeFile}
+            className="gap-1"
+          >
+            <Play className="h-3 w-3" />
+            {isExecuting ? 'Running...' : 'Run Code'}
+          </Button>
         </div>
       </div>
 
       {/* Editor */}
-      <div className="vscode-editor-wrapper relative">
-        <Editor
-          height="calc(100vh - 200px)"
-          language={language}
-          value={code}
-          onChange={(value) => setCode(value || '')}
-          onMount={handleEditorDidMount}
-          theme="vs-dark"
-          options={{
-            fontSize: 14,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            contextmenu: false, // Disable default context menu
-            selectOnLineNumbers: true,
-            roundedSelection: false,
-            readOnly: false,
-            cursorStyle: 'line',
-            mouseWheelZoom: true,
-          }}
-        />
-        
-        {/* Custom Context Menu */}
-        <ContextMenuComponent
-          visible={contextMenu.visible}
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onFixCode={handleFixCode}
-          onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))}
-          disabled={isProcessing || !TinyLlamaService.isReady()}
-        />
-      </div>
+      <ScrollArea className="h-full w-full">
+        <div className="vscode-editor-wrapper relative">
+          <Editor
+            height="calc(100vh - 200px)" // Keep a calculated height to not overflow
+            language={language}
+            value={activeFile?.content || ''}
+            onChange={(value) => {
+              if (activeFile) {
+                updateFileContent(activeFile.path, value || '');
+              }
+            }}
+            onMount={handleEditorDidMount}
+            theme="vs-dark"
+            options={{
+              fontSize: 14,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: true, // Enable scrolling beyond last line
+              automaticLayout: true,
+              contextmenu: false, // Disable default context menu
+              selectOnLineNumbers: true,
+              roundedSelection: false,
+              readOnly: false,
+              cursorStyle: 'line',
+              mouseWheelZoom: true,
+            }}
+          />
+          
+          {/* Custom Context Menu */}
+          <ContextMenuComponent
+            visible={contextMenu.visible}
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onFixCode={handleFixCode}
+            onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))}
+            disabled={isProcessing || !TinyLlamaService.isReady()}
+          />
+        </div>
+      </ScrollArea>
 
       {/* Diff Viewer */}
       {diffData && (

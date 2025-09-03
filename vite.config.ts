@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/execute': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    }
   },
   plugins: [
     react(),
@@ -21,6 +27,15 @@ export default defineConfig(({ mode }) => ({
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom'],
+    include: ['react', 'react-dom', 'monaco-editor'],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'monaco-editor': ['monaco-editor'],
+        },
+      },
+    },
   },
 }));
