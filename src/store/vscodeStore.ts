@@ -121,7 +121,7 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
   addFile: (file) => set((state) => ({ files: [...state.files, file] })),
   updateFileContent: (path, content) =>
     set((state) => ({
-      activeFile: state.activeFile?.path === path 
+      activeFile: state.activeFile?.path === path
         ? { ...state.activeFile, content }
         : state.activeFile,
       files: state.files.map((f) => (f.path === path ? { ...f, content } : f)),
@@ -133,7 +133,7 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
         : [...state.expandedPaths, path],
     })),
 
-  addToFileTree: (file) => 
+  addToFileTree: (file) =>
     set((state) => {
       const newTree = [...state.fileTree];
       // Add to root for simplicity, avoiding duplicates.
@@ -152,11 +152,11 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
     const existingUntitled = state.files
       .filter(f => f.path.startsWith('untitled:'))
       .map(f => parseInt(f.path.match(/\d+/)?.[0] || '0', 10));
-    
-    const nextNumber = existingUntitled.length > 0 
-      ? Math.max(...existingUntitled) + 1 
+
+    const nextNumber = existingUntitled.length > 0
+      ? Math.max(...existingUntitled) + 1
       : 1;
-    
+
     const newFile: FileState = {
       path: `untitled:Untitled-${nextNumber}`,
       content: '', // Ensure content is empty
@@ -164,7 +164,7 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
       name: `Untitled-${nextNumber}`,
     };
 
-    set((state) => ({ 
+    set((state) => ({
       files: [...state.files, newFile],
       activeFile: newFile
     }));
@@ -209,7 +209,7 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
         };
 
         set((state) => ({
-          files: state.files.map(f => 
+          files: state.files.map(f =>
             f.path === state.activeFile?.path ? updatedFile : f
           ),
           activeFile: updatedFile
@@ -340,14 +340,15 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
         }
       }
 
-      return { 
-        fileTree: newFileTree, 
-        files: newFiles, 
-        activeFile: updatedActiveFile 
+      return {
+        fileTree: newFileTree,
+        files: newFiles,
+        activeFile: updatedActiveFile
       };
     });
   },
-  
+
+  // THIS IS THE CORRECTED FUNCTION
   executeCode: async () => {
     const { activeFile, toggleTerminal, clearTerminal } = get();
     if (!activeFile) return;
@@ -357,15 +358,33 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
     }
     clearTerminal();
     set({ isExecuting: true });
-    set(state => ({ terminalOutput: [...state.terminalOutput, `$ Executing ${activeFile.name}...
-`] }));
+    set(state => ({ terminalOutput: [...state.terminalOutput, `$ Executing ${activeFile.name}...\n`] }));
+
+    // Map the file extension to the language string the server expects.
+    let language;
+    const extension = activeFile.name.split('.').pop();
+    switch (extension) {
+        case 'js':
+            language = 'javascript';
+            break;
+        case 'py':
+            language = 'python';
+            break;
+        case 'java':
+            language = 'java';
+            break;
+        default:
+            set(state => ({ terminalOutput: [...state.terminalOutput, `\n[ERROR] Unsupported language: ${extension}`] }));
+            set({ isExecuting: false });
+            return;
+    }
 
     try {
-      const response = await fetch('/execute', {
+      const response = await fetch('http://localhost:8000/execute', { // Ensure your server port is correct
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          language: activeFile.language,
+          language: language, // Use the mapped language
           code: activeFile.content,
         }),
       });
@@ -381,9 +400,10 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
         set(state => ({ terminalOutput: [...state.terminalOutput, chunk] }));
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Execution error:", error);
-      set(state => ({ terminalOutput: [...state.terminalOutput, `\n[ERROR] Failed to execute code: ${error.message}`] }));
+      const message = error instanceof Error ? error.message : String(error);
+      set(state => ({ terminalOutput: [...state.terminalOutput, `\n[ERROR] Failed to execute code: ${message}`] }));
     } finally {
       set({ isExecuting: false });
     }

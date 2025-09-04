@@ -1,73 +1,98 @@
-# Welcome to your Lovable project
+# EZ-AI-Coder
 
-## Project info
+## Project Description
 
-**URL**: https://lovable.dev/projects/3e57507d-7a1f-476c-9b16-5acab360e7b6
+EZ-AI-Coder is a web-based application that allows users to write and execute code directly in their browser. It features a VSCode-like interface for the frontend and a robust backend powered by Docker for secure and isolated code execution. This project supports multiple programming languages, providing a seamless development and testing environment.
 
-## How can I edit this code?
+## Supported Languages
 
-There are several ways of editing your application.
+*   JavaScript
+*   Python
+*   Java
+*   C++
 
-**Use Lovable**
+## Setup and Installation
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/3e57507d-7a1f-476c-9b16-5acab360e7b6) and start prompting.
+This project consists of two main parts: the **Frontend** (React application) and the **Backend** (Express server). Both need to be set up and run independently.
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+*   Node.js (LTS version recommended)
+*   npm (Node Package Manager) or Yarn
+*   Docker Desktop (or Docker Engine) installed and running on your system.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 1. Backend Setup
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+The backend is responsible for handling code execution requests by spinning up Docker containers.
 
-Follow these steps:
+**Navigate to the backend directory:**
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+cd server
 ```
 
-**Edit a file directly in GitHub**
+**Install dependencies:**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm install
+```
 
-**Use GitHub Codespaces**
+**Run the backend in development mode:**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+npm run dev
+```
+The backend server will start on `http://localhost:8000`.
 
-## What technologies are used for this project?
+### 2. Frontend Setup
 
-This project is built with:
+The frontend provides the user interface, including the code editor and terminal.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+**Navigate to the project root directory (where `package.json` is located):**
 
-## How can I deploy this project?
+```bash
+cd .. # If you are still in the 'server' directory
+```
 
-Simply open [Lovable](https://lovable.dev/projects/3e57507d-7a1f-476c-9b16-5acab360e7b6) and click on Share -> Publish.
+**Install dependencies:**
 
-## Can I connect a custom domain to my Lovable project?
+```bash
+npm install
+```
 
-Yes, you can!
+**Run the frontend in development mode:**
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```bash
+npm run dev
+```
+The frontend application will typically open in your browser at `http://localhost:5173` (or another available port).
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## How to Run the Application
+
+To run the full application, you need to start both the backend and the frontend.
+
+1.  **Start the Backend:**
+    Open your terminal or command prompt.
+    ```bash
+    cd server
+    npm run dev
+    ```
+    Leave this terminal window open and running.
+
+2.  **Start the Frontend:**
+    Open a **new** terminal or command prompt.
+    ```bash
+    cd .. # Navigate to the project root if you are not already there
+    npm run dev
+    ```
+    This will open the application in your default web browser.
+
+Now you can write code in the editor, select the language, and execute it. The output will appear in the integrated terminal.
+
+## Important Notes
+
+*   **Docker:** Ensure Docker Desktop (or Docker Engine) is running before starting the backend server. The backend relies on Docker to create isolated environments for code execution.
+*   **Java Execution:** For Java code, your main class must be named `Main` and the file saved as `Main.java` for successful compilation and execution on the backend.
+*   **Port Usage:**
+    *   Backend: `http://localhost:8000`
+    *   Frontend: Typically `http://localhost:5173` (Vite's default)

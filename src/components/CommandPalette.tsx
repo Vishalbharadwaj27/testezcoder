@@ -18,12 +18,13 @@ export function CommandPalette() {
     createNewFile,
     openFile,
     saveActiveFile,
-    toggleSidebar,
     toggleTerminal,
     activeFile,
+    setSidebarVisible,
+    sidebarVisible
   } = useVSCode();
 
-  const runCommand = (command: () => void | Promise<void>) => {
+  const runCommand = (command: () => unknown) => {
     command();
     toggleCommandPalette();
   };
@@ -53,7 +54,7 @@ export function CommandPalette() {
             <TerminalSquare className="mr-2 h-4 w-4" />
             <span>Toggle Terminal</span>
           </CommandItem>
-          <CommandItem onSelect={() => runCommand(toggleSidebar)}>
+          <CommandItem onSelect={() => runCommand(() => setSidebarVisible(!sidebarVisible))}>
             <Sidebar className="mr-2 h-4 w-4" />
             <span>Toggle Sidebar</span>
           </CommandItem>
