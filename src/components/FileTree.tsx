@@ -40,6 +40,7 @@ function FileTreeNode({ node, level }: FileTreeNodeProps) {
     togglePath,
     fetchFileContent,
     renameFile,
+    deleteFile, // Get deleteFile from the store
   } = useVSCode();
 
   const [isRenaming, setIsRenaming] = useState(false);
@@ -61,6 +62,10 @@ function FileTreeNode({ node, level }: FileTreeNodeProps) {
       renameFile(node.path, newName);
     }
     setIsRenaming(false);
+  };
+
+  const handleDelete = () => {
+    deleteFile(node.path);
   };
 
   return (
@@ -111,6 +116,7 @@ function FileTreeNode({ node, level }: FileTreeNodeProps) {
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={() => setIsRenaming(true)}>Rename</ContextMenuItem>
+        <ContextMenuItem onClick={handleDelete}>Delete</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );

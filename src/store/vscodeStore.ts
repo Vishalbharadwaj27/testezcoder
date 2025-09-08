@@ -60,6 +60,7 @@ interface VSCodeActions {
   addToFileTree: (file: FileState) => void;
   openFile: () => Promise<void>;
   renameFile: (oldPath: string, newName: string) => void;
+  deleteFile: (path: string) => void;
   toggleCommandPalette: () => void;
   executeCode: () => Promise<void>;
   clearTerminal: () => void;
@@ -70,7 +71,7 @@ type VSCodeStore = VSCodeState & VSCodeActions;
 
 // Default state
 const defaultState: VSCodeState = {
-  theme: 'system',
+  theme: 'dark', // Default theme
   fontSize: 14,
   tabSize: 2,
   sidebarVisible: true,
@@ -80,24 +81,8 @@ const defaultState: VSCodeState = {
   isMinimized: false,
   activeFile: null,
   files: [],
-  fileTree: [
-    {
-      name: 'src',
-      path: '/src',
-      type: 'folder',
-      children: [
-        {
-          name: 'components',
-          path: '/src/components',
-          type: 'folder',
-          children: [
-            { name: 'App.tsx', path: '/src/components/App.tsx', type: 'file' },
-          ],
-        },
-      ],
-    },
-  ],
-  expandedPaths: ['/src'],
+  fileTree: [], // Empty file tree by default
+  expandedPaths: [],
   isCommandPaletteOpen: false,
   terminalOutput: [],
   isExecuting: false,
@@ -348,6 +333,37 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
     });
   },
 
+  deleteFile: (path) => {
+    set((state) => {
+      const newFileTree = JSON.parse(JSON.stringify(state.fileTree));
+      const newFiles = state.files.filter((f) => f.path !== path);
+
+      const findAndDeleteInTree = (nodes: Array<File | Folder>, pathToDelete: string) => {
+        return nodes.filter(node => {
+          if (node.path === pathToDelete) {
+            return false;
+          }
+          if (node.type === 'folder' && node.children) {
+            node.children = findAndDeleteInTree(node.children, pathToDelete);
+          }
+          return true;
+        });
+      };
+
+
+      let updatedActiveFile = state.activeFile;
+      if (state.activeFile?.path === path) {
+        updatedActiveFile = null;
+      }
+
+      return {
+        fileTree: findAndDeleteInTree(newFileTree, path),
+        files: newFiles,
+        activeFile: updatedActiveFile,
+      };
+    });
+  },
+
   // THIS IS THE CORRECTED FUNCTION
   executeCode: async () => {
     const { activeFile, toggleTerminal, clearTerminal } = get();
@@ -372,6 +388,12 @@ export const useVSCode = create<VSCodeStore>((set, get) => ({
             break;
         case 'java':
             language = 'java';
+            break;
+        case 'cpp':
+            language = 'cpp';
+            break;
+        case 'c':
+            language = 'c';
             break;
         default:
             set(state => ({ terminalOutput: [...state.terminalOutput, `\n[ERROR] Unsupported language: ${extension}`] }));

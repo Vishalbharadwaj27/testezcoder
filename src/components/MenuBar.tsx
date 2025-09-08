@@ -7,9 +7,13 @@ import {
   MenubarItem,
   MenubarSeparator,
   MenubarShortcut,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
 } from '@/components/ui/menubar';
 import { useToast } from '@/hooks/use-toast';
 import { useVSCode } from '../store/vscodeStore';
+import { useTheme } from '../store/theme';
 
 export function MenuBar() {
   const {
@@ -24,6 +28,7 @@ export function MenuBar() {
     toggleCommandPalette,
   } = useVSCode();
   const { toast } = useToast();
+  const { setTheme } = useTheme();
 
   const toggleSidebar = () => {
     setSidebarVisible(!sidebarVisible);
@@ -121,6 +126,14 @@ export function MenuBar() {
           <MenubarItem onClick={toggleCommandPalette}>
             Command Palette... <MenubarShortcut>⌘⇧P</MenubarShortcut>
           </MenubarItem>
+          <MenubarSeparator />
+          <MenubarSub>
+            <MenubarSubTrigger>Theme</MenubarSubTrigger>
+            <MenubarSubContent>
+              <MenubarItem onClick={() => setTheme('light')}>Light</MenubarItem>
+              <MenubarItem onClick={() => setTheme('dark')}>Dark</MenubarItem>
+            </MenubarSubContent>
+          </MenubarSub>
           <MenubarSeparator />
           <MenubarItem onClick={toggleSidebar}>
             Toggle Sidebar <MenubarShortcut>⌘B</MenubarShortcut>

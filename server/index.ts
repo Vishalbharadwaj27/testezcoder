@@ -1,54 +1,58 @@
 import express from 'express';
 import cors from 'cors';
 import Docker from 'dockerode';
-import { Readable, Writable } from 'stream';
 import { PassThrough } from 'stream';
 
 const app = express();
 const port = 8000;
-// For Windows, you might need: { socketPath: '//./pipe/docker_engine' }
 const docker = new Docker();
 
 app.use(cors());
 app.use(express.json());
 
-const languageConfig: { [key: string]: { image: string; cmd: (fileName: string) => string[] } } = {
+// Updated language config with commands designed for streaming stdin
+const languageConfig: { [key: string]: { image: string; cmd: string } } = {
     javascript: {
         image: 'node:18-alpine',
-        cmd: (fileName) => ['node', fileName],
+        cmd: 'cat > script.js && node script.js',
     },
     python: {
         image: 'python:3.10-alpine',
-        cmd: (fileName) => ['python', fileName],
+        cmd: 'cat > script.py && python script.py',
     },
     java: {
         image: 'openjdk:11-jdk-slim',
-        // This is the corrected command. It removes an unnecessary shell wrapper.
-        cmd: (fileName) => [`javac ${fileName} && java Main`],
+        cmd: 'cat > Main.java && javac Main.java && java Main',
     },
-     cpp: {
-        image: 'gcc:latest', // Using the official GCC Docker image
-        cmd: (fileName) => [`g++ ${fileName} -o a.out && ./a.out`], // Compiles the file to a.out and then executes it
+    cpp: {
+        image: 'gcc:latest',
+        cmd: 'cat > script.cpp && g++ script.cpp -o a.out && ./a.out',
+    },
+    c: {
+        image: 'gcc:latest',
+        cmd: 'cat > script.c && gcc script.c -o a.out && ./a.out',
     },
 };
 
+// Helper function to ensure images are available locally
 const pullImage = (imageName: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-        console.log(`Pulling image: ${imageName}...`);
-        docker.pull(imageName, (err: unknown, stream: Readable) => {
-            if (err) {
-                return reject(err);
-            }
-            docker.modem.followProgress(stream, (err: unknown, output: unknown) => {
-                if (err) {
-                    return reject(err);
-                }
-                console.log(`Image ${imageName} pulled.`);
+        docker.pull(imageName, (err: Error, stream: NodeJS.ReadableStream) => {
+            if (err) return reject(err);
+            docker.modem.followProgress(stream, (err: Error | null) => {
+                if (err) return reject(err);
+                console.log(`Image ${imageName} is ready.`);
                 resolve();
             });
         });
     });
 };
+
+// Pre-pull all images on server startup for faster execution
+Object.values(languageConfig).forEach(config => {
+    pullImage(config.image).catch(err => console.error(`Failed to pull ${config.image}`, err));
+});
+
 
 app.post('/execute', async (req, res) => {
     const { language, code } = req.body;
@@ -62,51 +66,58 @@ app.post('/execute', async (req, res) => {
         return res.status(400).send({ error: `Unsupported language: ${language}` });
     }
 
-    const fileName = language === 'java' ? 'Main.java' : `script.${language}`;
-    const escapedCode = code.replace(/'/g, "'\\''");
-    const commandParts = config.cmd(fileName);
-    const command = `echo '${escapedCode}' > ${fileName} && ${commandParts.join(' ')}`;
-
-    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
     try {
-        await pullImage(config.image);
-
-        const outputBuffer: Buffer[] = [];
-        const outputStream = new Writable({
-            write(chunk, encoding, callback) {
-                outputBuffer.push(chunk);
-                callback();
-            }
-        });
-
-        const options = {
+        const container = await docker.createContainer({
+            Image: config.image,
+            Cmd: ['/bin/sh', '-c', config.cmd],
+            AttachStdin: true,
+            AttachStdout: true,
+            AttachStderr: true,
+            OpenStdin: true,
+            StdinOnce: false, // Keep stdin open until we explicitly close it
             Tty: false,
             HostConfig: {
-                AutoRemove: true,
+                AutoRemove: true, // Automatically remove the container when it exits
             },
-            StopTimeout: 15,
-        };
+        });
 
-        const [data, container] = await docker.run(config.image, ['/bin/sh', '-c', command], outputStream, options);
+        const stream = await container.attach({
+            stream: true,
+            stdin: true,
+            stdout: true,
+            stderr: true,
+        });
 
-        const fullOutput = Buffer.concat(outputBuffer).toString();
+        // Pipe container output (stdout & stderr) directly to the HTTP response
+        // Docker multiplexes stdout and stderr, so we demux them to keep them separate if needed
+        // For simplicity here, we'll pipe the combined stream.
+        const output = new PassThrough();
+        container.modem.demuxStream(stream, output, output);
+        output.pipe(res);
+        
+        await container.start();
 
-        if (data.StatusCode !== 0) {
-            console.error(`Container exited with status code: ${data.StatusCode}`);
-            res.status(400).send(fullOutput); // Send 400 with error output
-        } else {
-            res.status(200).send(fullOutput); // Send 200 with success output
-        }
+        // Write the user's code to the container's stdin
+        stream.write(code);
+        stream.end(); // Close stdin to signal that we're done sending code
+
+        // Wait for the container to finish executing
+        await container.wait();
+
+        // Explicitly end the response to signal completion
+        res.end();
 
     } catch (error: unknown) {
-        console.error('Execution setup error:', error);
+        console.error('Execution error:', error);
         if (!res.headersSent) {
-            const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+            const message = error instanceof Error ? error.message : 'An unknown error occurred during execution.';
             res.status(500).send(message);
         }
     }
 });
+
 
 app.listen(port, () => {
     console.log(`Backend server is listening on http://localhost:${port}`);

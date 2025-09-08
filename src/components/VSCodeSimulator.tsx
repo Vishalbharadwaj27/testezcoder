@@ -6,6 +6,8 @@ import { WindowControls } from './WindowControls';
 import { useVSCode } from '../store/vscodeStore';
 import { CommandPalette } from './CommandPalette';
 import Terminal from './Terminal';
+import { useTheme } from '../store/theme';
+import { useEffect } from 'react';
 
 // Simple Terminal Panel component
 function TerminalPanel() {
@@ -14,11 +16,21 @@ function TerminalPanel() {
 
 export function VSCodeSimulator() {
   const { isTerminalOpen, activeFile } = useVSCode();
+  const { theme } = useTheme();
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [theme]);
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-background p-4 md:p-8">
       <CommandPalette />
-      <div className="w-full max-w-7xl h-[80vh] border rounded-lg overflow-hidden shadow-2xl flex flex-col bg-muted/20">
+      <div className="w-full max-w-7xl h-[80vh] border rounded-lg overflow-hidden shadow-2xl flex flex-col bg-card">
         {/* Title Bar */}
         <div className="flex items-center justify-between h-8 bg-muted/40 border-b px-2">
           <MenuBar />
